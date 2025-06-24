@@ -1,13 +1,13 @@
 package source
 
 type Source struct {
-	Prefix      string
-	Postfix     string
-	Firstname   string
-	Lastname    string
-	Middlename  string
-	Gender      string
-	DateOfBirth string
+	Prefix      string `json:"prefix"`
+	Postfix     string `json:"postfix"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	MiddleName  string `json:"middleName"`
+	Gender      string `json:"gender"`
+	DateOfBirth string `json:"dateOfBirth"`
 }
 
 func New(opts ...func(*Source)) *Source {
@@ -32,19 +32,19 @@ func WithPostFix(postfix string) func(*Source) {
 
 func WithFirstname(firstname string) func(*Source) {
 	return func(s *Source) {
-		s.Firstname = firstname
+		s.FirstName = firstname
 	}
 }
 
 func WithLastname(lastname string) func(*Source) {
 	return func(s *Source) {
-		s.Lastname = lastname
+		s.LastName = lastname
 	}
 }
 
 func WithMiddlename(name string) func(*Source) {
 	return func(s *Source) {
-		s.Middlename = name
+		s.MiddleName = name
 	}
 }
 

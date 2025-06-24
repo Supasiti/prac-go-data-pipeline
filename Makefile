@@ -60,6 +60,11 @@ tidy:
 	go mod tidy -v
 	go fmt ./...
 
+## gen-data: generate data for testing
+.Phony: gen-data
+gen-data:
+	go run ./tools/source-generator
+	
 ## build: build the application
 .PHONY: build
 build:
