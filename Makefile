@@ -1,4 +1,4 @@
-dataflow = ./cmd/dataflow
+main_cmd = ./cmd/dataflow
 binary_name = dataflow
 
 # ==================================================================================== #
@@ -68,7 +68,7 @@ gen-data:
 ## build: build the application
 .PHONY: build
 build:
-	go build -o=/tmp/bin/${binary_name} ${main_package_path}
+	go build -o=/tmp/bin/${binary_name} ${main_cmd}
 
 ## run: run the  application
 .PHONY: run
