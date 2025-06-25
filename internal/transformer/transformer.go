@@ -12,6 +12,7 @@ import (
 
 func sourceToDocument(src *source.Source) *document.Document {
 	return &document.Document{
+		Id:        src.Id,
 		FirstName: src.FirstName,
 		LastName:  src.LastName,
 	}
@@ -32,13 +33,13 @@ func (w *Transformer) ScanFile(file *os.File, outCh chan<- *document.Document) {
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if err := json.Unmarshal(line, &src); err != nil {
-			slog.Warn("Error unmarshalling a row")
+			slog.Warn("error unmarshalling a row")
 			continue
 		}
 		outCh <- sourceToDocument(&src)
 	}
 
 	if err := scanner.Err(); err != nil {
-		slog.Error("Error reading file", slog.Any("error", err))
+		slog.Error("error reading file", slog.Any("error", err))
 	}
 }

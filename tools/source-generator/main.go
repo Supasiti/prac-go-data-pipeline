@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	src "github.com/Supasiti/prac-go-data-pipeline/internal/models/source"
@@ -24,6 +25,7 @@ func generateSource() (*src.Source, error) {
 	}
 
 	r := &src.Source{
+		Id:          strconv.Itoa(faker.Number(100000, 999999)),
 		Prefix:      faker.NamePrefix(),
 		Postfix:     postfix.(string),
 		FirstName:   faker.FirstName(),

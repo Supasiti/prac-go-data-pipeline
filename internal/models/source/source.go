@@ -1,6 +1,7 @@
 package source
 
 type Source struct {
+	Id          string `json:"id"`
 	Prefix      string `json:"prefix"`
 	Postfix     string `json:"postfix"`
 	FirstName   string `json:"firstName"`
