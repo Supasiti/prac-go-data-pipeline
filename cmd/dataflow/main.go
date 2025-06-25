@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/models/document"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/transform"
+	"github.com/Supasiti/prac-go-data-pipeline/internal/transformer"
 )
 
 const (
@@ -14,7 +14,7 @@ const (
 
 func main() {
 	ch := make(chan *document.Document, 1000)
-	worker := transform.NewWorker()
+	tfm := transformer.NewTransformer()
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -22,7 +22,7 @@ func main() {
 	}
 	defer file.Close()
 
-	worker.ScanFile(file, ch)
+	tfm.ScanFile(file, ch)
 
 	for doc := range ch {
 		slog.Info("Incoming docs", slog.Any("document", *doc))

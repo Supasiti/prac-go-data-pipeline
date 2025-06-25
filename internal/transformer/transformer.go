@@ -1,4 +1,4 @@
-package transform
+package transformer
 
 import (
 	"bufio"
@@ -17,13 +17,13 @@ func sourceToDocument(src *source.Source) *document.Document {
 	}
 }
 
-type Worker struct{}
+type Transformer struct{}
 
-func NewWorker() *Worker {
-	return &Worker{}
+func NewTransformer() *Transformer {
+	return &Transformer{}
 }
 
-func (w *Worker) ScanFile(file *os.File, outCh chan<- *document.Document) {
+func (w *Transformer) ScanFile(file *os.File, outCh chan<- *document.Document) {
 	defer close(outCh)
 
 	var src source.Source
