@@ -1,6 +1,9 @@
 package opensearch
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/models/document"
@@ -55,10 +58,25 @@ func (i *Indexer) StartIndexing(ch <-chan *document.Document) {
 
 		if i.Cursor == i.BufSize {
 			slog.Info("reach buffer capacity")
+			i.toBulkRequest(i.Buf)
 		}
 	}
 }
 
-// func (i *Indexer) toBulkRequest(docs []*document.Document) io.Reader {
-//
-// }
+func (i *Indexer) toBulkRequest(docs []*document.Document) (io.Reader, error) {
+	blkStr := ""
+
+	for _, doc := range docs {
+		docStr, err := json.Marshal(doc)
+		if err != nil {
+			return nil, fmt.Errorf("error json marshalling to bulk request: %v", err)
+		}
+
+		blkStr += fmt.Sprintf("{ \"update\": { \"_index\": \"%s\", \"_id\": \"%s\" } }\n", i.Index, doc.Id)
+		blkStr += fmt.Sprintf("{ \"doc\" : %s, \"doc_as_upsert\": true }\n", docStr)
+
+	}
+	fmt.Print(blkStr)
+	return nil, nil
+
+}
