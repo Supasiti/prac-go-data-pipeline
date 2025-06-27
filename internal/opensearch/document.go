@@ -1,4 +1,4 @@
-package document
+package opensearch
 
 type Document struct {
 	Id        string `json:"id"`

@@ -1,4 +1,4 @@
-package source
+package transformer
 
 type Source struct {
 	Id          string `json:"id"`

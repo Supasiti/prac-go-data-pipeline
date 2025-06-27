@@ -8,23 +8,23 @@ import (
 	"strconv"
 	"time"
 
-	src "github.com/Supasiti/prac-go-data-pipeline/internal/models/source"
+	"github.com/Supasiti/prac-go-data-pipeline/internal/transformer"
 	faker "github.com/brianvoe/gofakeit/v7"
 )
 
 const (
-	count        = 10
+	count        = 1000000
 	fileTemplate = "tests/data/source_%v.txt"
 )
 
-func generateSource() (*src.Source, error) {
+func generateSource() (*transformer.Source, error) {
 	postfixOpts := []any{"", faker.NameSuffix()}
 	postfix, err := faker.Weighted(postfixOpts, []float32{0.4, 0.6})
 	if err != nil {
 		return nil, err
 	}
 
-	r := &src.Source{
+	r := &transformer.Source{
 		Id:          strconv.Itoa(faker.Number(100000, 999999)),
 		Prefix:      faker.NamePrefix(),
 		Postfix:     postfix.(string),
@@ -38,6 +38,7 @@ func generateSource() (*src.Source, error) {
 }
 
 func main() {
+	start := time.Now()
 	filename := fmt.Sprintf(fileTemplate, count)
 	log.Printf("[INFO] Generating source data to file: %s\n", filename)
 
@@ -48,20 +49,26 @@ func main() {
 	}
 	defer file.Close()
 
+	progress := 0
 	// write each row without comma
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "")
 	for i := range count {
 		s, err := generateSource()
 		if err != nil {
-			log.Fatalf("Failed to generate source: %v", err)
+			log.Fatalf("[ERROR] Failed to generate source: %v", err)
 		}
 
 		if err := encoder.Encode(s); err != nil {
-			log.Fatalf("Failed to encode source %d to JSON: %v", i, err)
+			log.Fatalf("[ERROR] Failed to encode source %d to JSON: %v", i, err)
+		}
+		progress++
+
+		if progress%10000 == 0 {
+			log.Printf("[INFO] Generated %d rows\n", progress)
 		}
 	}
 
 	log.Printf("[INFO] Successfully generated %d rows to file: %s\n", count, filename)
-
+	log.Printf("[INFO] Total execution time: %v", time.Since(start))
 }

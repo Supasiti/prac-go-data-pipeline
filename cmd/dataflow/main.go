@@ -3,25 +3,32 @@ package main
 import (
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/config"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/models/document"
 	"github.com/Supasiti/prac-go-data-pipeline/internal/opensearch"
 	"github.com/Supasiti/prac-go-data-pipeline/internal/transformer"
 )
 
 const (
-	filePath = "./tests/data/source_10.txt"
+	filePath  = "./tests/data/source_1000000.txt"
+	batchSize = 10
+	indexName = "person"
+	queueSize = 1000
 )
 
 func main() {
+	start := time.Now()
+	slog.Info("getting config...")
 	cfg, err := config.NewConfig()
 	if err != nil {
 		slog.Error("error getting config from .env file")
 		return
 	}
 
-	ch := make(chan *document.Document, 1000)
+	slog.Info("initialising transformer and indexer...")
+	ch := make(chan *opensearch.Document, queueSize)
+	done := make(chan struct{})
 	tfm := transformer.NewTransformer()
 
 	client, err := opensearch.NewClient(*cfg.OpenSearch)
@@ -30,14 +37,19 @@ func main() {
 		return
 	}
 
-	indexer := opensearch.NewIndexer(client, "person", 10)
+	indexer := opensearch.NewIndexer(client, indexName, batchSize)
 
+	slog.Info("opening file...", slog.String("file", filePath))
 	file, err := os.Open(filePath)
 	if err != nil {
 		slog.Error("error opening file", slog.Any("error", err))
 	}
 	defer file.Close()
 
-	tfm.ScanFile(file, ch)
-	indexer.StartIndexing(ch)
+	go tfm.ScanFile(file, ch)
+	go indexer.Start(ch, done)
+
+	<-done
+
+	slog.Info("finished execution", slog.Duration("excution_time", time.Since(start)))
 }

@@ -6,12 +6,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/Supasiti/prac-go-data-pipeline/internal/models/document"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/models/source"
+	"github.com/Supasiti/prac-go-data-pipeline/internal/opensearch"
 )
 
-func sourceToDocument(src *source.Source) *document.Document {
-	return &document.Document{
+func sourceToDocument(src *Source) *opensearch.Document {
+	return &opensearch.Document{
 		Id:        src.Id,
 		FirstName: src.FirstName,
 		LastName:  src.LastName,
@@ -24,15 +23,18 @@ func NewTransformer() *Transformer {
 	return &Transformer{}
 }
 
-func (w *Transformer) ScanFile(file *os.File, outCh chan<- *document.Document) {
+func (w *Transformer) ScanFile(file *os.File, outCh chan<- *opensearch.Document) {
 	defer close(outCh)
 
-	var src source.Source
+	slog.Info("starting scanning")
+
+	var src Source
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if err := json.Unmarshal(line, &src); err != nil {
+			// deal with error later
 			slog.Warn("error unmarshalling a row")
 			continue
 		}
@@ -42,4 +44,6 @@ func (w *Transformer) ScanFile(file *os.File, outCh chan<- *document.Document) {
 	if err := scanner.Err(); err != nil {
 		slog.Error("error reading file", slog.Any("error", err))
 	}
+
+	slog.Info("finished scanning file")
 }
