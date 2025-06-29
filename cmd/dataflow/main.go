@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/config"
@@ -11,10 +12,11 @@ import (
 )
 
 const (
-	filePath  = "./tests/data/source_1000000.txt"
-	batchSize = 20
-	indexName = "person"
-	queueSize = 1000
+	filePath   = "./tests/data/source_1000000.txt"
+	batchSize  = 20
+	indexName  = "person"
+	queueSize  = 1000
+	numIndexer = 1
 )
 
 func main() {
@@ -28,7 +30,6 @@ func main() {
 
 	slog.Info("initialising transformer and indexer...")
 	ch := make(chan *opensearch.Document, queueSize)
-	done := make(chan struct{})
 	tfm := transformer.NewTransformer()
 
 	client, err := opensearch.NewClient(*cfg.OpenSearch)
@@ -37,7 +38,16 @@ func main() {
 		return
 	}
 
-	indexer := opensearch.NewIndexer(client, indexName, batchSize)
+	var wg sync.WaitGroup
+	for range numIndexer {
+		wg.Add(1)
+		indexer := opensearch.NewIndexer(client, indexName, batchSize)
+
+		go func() {
+			defer wg.Done()
+			indexer.Start(ch)
+		}()
+	}
 
 	slog.Info("opening file...", slog.String("file", filePath))
 	file, err := os.Open(filePath)
@@ -47,9 +57,7 @@ func main() {
 	defer file.Close()
 
 	go tfm.ScanFile(file, ch)
-	go indexer.Start(ch, done)
 
-	<-done
-
+	wg.Wait()
 	slog.Info("finished execution", slog.Duration("excution_time", time.Since(start)))
 }

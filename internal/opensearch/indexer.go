@@ -32,8 +32,7 @@ func NewIndexer(client *opensearchapi.Client, index string, bufSize uint16) *Ind
 	}
 }
 
-func (i *Indexer) Start(ch <-chan *Document, done chan<- struct{}) {
-	defer close(done)
+func (i *Indexer) Start(ch <-chan *Document) {
 	slog.Info("starting indexing")
 
 	for {

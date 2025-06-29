@@ -24,7 +24,7 @@ func NewClient(cfg config.OpenSearchConfig) (*opensearchapi.Client, error) {
 			RetryBackoff: func(i int) time.Duration {
 				return time.Duration(i) * 500 * time.Millisecond // simple incremental backoff
 			},
-			MaxRetries: 5,
+			MaxRetries: 3,
 		},
 	}
 
