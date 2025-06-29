@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"sync"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	filePath   = "./tests/data/source_1000000.txt"
+	filePath   = "./tests/data/source_1000.txt"
 	batchSize  = 20
 	indexName  = "person"
 	queueSize  = 1000
@@ -29,8 +30,7 @@ func main() {
 	}
 
 	slog.Info("initialising transformer and indexer...")
-	ch := make(chan *opensearch.Document, queueSize)
-	tfm := transformer.NewTransformer()
+	tfm := transformer.NewTransformer(queueSize)
 
 	client, err := opensearch.NewClient(*cfg.OpenSearch)
 	if err != nil {
@@ -40,12 +40,16 @@ func main() {
 
 	var wg sync.WaitGroup
 	for range numIndexer {
-		indexer := opensearch.NewIndexer(client, indexName, batchSize)
+		indexer := opensearch.NewIndexer(opensearch.IndexerConfig{
+			Client:    client,
+			IndexName: indexName,
+			BufSize:   batchSize,
+		})
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
-			indexer.Start(ch)
+			indexer.Start(tfm.Documents())
 		}()
 	}
 
@@ -53,10 +57,11 @@ func main() {
 	file, err := os.Open(filePath)
 	if err != nil {
 		slog.Error("error opening file", slog.Any("error", err))
+		return
 	}
 	defer file.Close()
 
-	go tfm.ScanFile(file, ch)
+	go tfm.ScanFile(context.Background(), file)
 
 	wg.Wait()
 	slog.Info("finished execution", slog.Duration("excution_time", time.Since(start)))

@@ -11,23 +11,30 @@ import (
 	opensearchapi "github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 )
 
-type Indexer struct {
-	Client *opensearchapi.Client
-	Index  string
+type IndexerConfig struct {
+	Client    *opensearchapi.Client
+	IndexName string
+	BufSize   uint16
+}
 
-	Buf     []*Document
-	BufSize uint16
-	Cursor  uint16
+type Indexer struct {
+	client *opensearchapi.Client
+	index  string
+
+	buf     []*Document
+	bufSize uint16
+	cursor  uint16 // the next slot in the buffer for document
 	count   uint64
 }
 
-func NewIndexer(client *opensearchapi.Client, index string, bufSize uint16) *Indexer {
+func NewIndexer(cfg IndexerConfig) *Indexer {
 	return &Indexer{
-		Client:  client,
-		Index:   index,
-		Buf:     make([]*Document, bufSize),
-		BufSize: bufSize,
-		Cursor:  0,
+		client: cfg.Client,
+		index:  cfg.IndexName,
+
+		buf:     make([]*Document, cfg.BufSize),
+		bufSize: cfg.BufSize,
+		cursor:  0,
 		count:   0,
 	}
 }
@@ -39,20 +46,20 @@ func (i *Indexer) Start(ch <-chan *Document) {
 		doc, ok := <-ch
 		if !ok {
 			slog.Info("channel is closed")
-			if i.Cursor < i.BufSize {
+			if i.cursor < i.bufSize {
 				i.indexDocuments()
 			}
 			break
 		}
 
-		if i.Cursor >= i.BufSize {
-			i.Cursor = 0 // otherwise get out of bound error
+		if i.cursor >= i.bufSize {
+			i.cursor = 0 // otherwise get out of bound error
 		}
 
-		i.Buf[i.Cursor] = doc
-		i.Cursor++
+		i.buf[i.cursor] = doc
+		i.cursor++
 
-		if i.Cursor != i.BufSize {
+		if i.cursor != i.bufSize {
 			continue
 		}
 
@@ -64,13 +71,13 @@ func (i *Indexer) Start(ch <-chan *Document) {
 }
 
 func (i *Indexer) indexDocuments() error {
-	docs := i.Buf[0:i.Cursor]
+	docs := i.buf[0:i.cursor]
 	bulkBody, err := i.bulkBodyReader(docs)
 	if err != nil {
 		return fmt.Errorf("error creating bulk req: %v", err)
 	}
 
-	resp, err := i.Client.Bulk(context.Background(), opensearchapi.BulkReq{Body: bulkBody})
+	resp, err := i.client.Bulk(context.Background(), opensearchapi.BulkReq{Body: bulkBody})
 	if err != nil {
 		return fmt.Errorf("error bulk insert: %v", err)
 	}
@@ -81,7 +88,7 @@ func (i *Indexer) indexDocuments() error {
 	}
 
 	// deal with partial failure later
-	i.count += uint64(i.Cursor)
+	i.count += uint64(i.cursor)
 	return nil
 }
 
@@ -94,7 +101,7 @@ func (i *Indexer) bulkBodyReader(docs []*Document) (io.Reader, error) {
 			return nil, fmt.Errorf("error json marshalling to bulk request: %v", err)
 		}
 
-		fmt.Fprintf(b, `{ "update": { "_index": "%s", "_id": "%s" } }`, i.Index, doc.Id)
+		fmt.Fprintf(b, `{ "update": { "_index": "%s", "_id": "%s" } }`, i.index, doc.Id)
 		b.WriteString("\n")
 		fmt.Fprintf(b, `{ "doc" : %s, "doc_as_upsert": true }`, docStr)
 		b.WriteString("\n")

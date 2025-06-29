@@ -2,50 +2,73 @@ package transformer
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/opensearch"
 )
 
-func sourceToDocument(src *Source) *opensearch.Document {
-	return &opensearch.Document{
-		Id:        src.Id,
-		FirstName: src.FirstName,
-		LastName:  src.LastName,
+type Transformer struct {
+	outCh chan *opensearch.Document
+	errCh chan error
+	count int
+}
+
+func NewTransformer(queueSize int) *Transformer {
+	return &Transformer{
+		outCh: make(chan *opensearch.Document, queueSize),
+		errCh: make(chan error, queueSize),
+		count: 0,
 	}
 }
 
-type Transformer struct{}
-
-func NewTransformer() *Transformer {
-	return &Transformer{}
-}
-
-func (w *Transformer) ScanFile(file *os.File, outCh chan<- *opensearch.Document) {
-	defer close(outCh)
+func (t *Transformer) ScanFile(ctx context.Context, file *os.File) {
+	defer t.cleanup()
+	t.count = 0
 
 	slog.Info("starting scanning")
-	count := 0
-
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
-		line := scanner.Bytes()
-		var src Source
-		if err := json.Unmarshal(line, &src); err != nil {
-			// deal with error later
-			slog.Warn("error unmarshalling a row")
-			continue
+		select {
+		case <-ctx.Done():
+			t.errCh <- fmt.Errorf("cancel scanning %v", ctx.Err())
+			return
+		default:
+			line := scanner.Bytes()
+			var src Source
+			if err := json.Unmarshal(line, &src); err != nil {
+				err = fmt.Errorf("error unmarshalling a row: %v", err)
+				t.errCh <- err
+				continue
+			}
+
+			// can do validation here
+
+			t.outCh <- sourceToDocument(&src)
+			t.count++
 		}
-		outCh <- sourceToDocument(&src)
-		count++
 	}
 
 	if err := scanner.Err(); err != nil {
-		slog.Error("error reading file", slog.Any("error", err))
+		err = fmt.Errorf("error reading file: %v", err)
+		t.errCh <- err
 	}
+}
 
-	slog.Info("finished scanning file", slog.Int("rows", count))
+func (t *Transformer) Documents() <-chan *opensearch.Document {
+	return t.outCh
+}
+
+func (t *Transformer) Err() <-chan error {
+	return t.errCh
+}
+
+func (t *Transformer) cleanup() {
+	close(t.outCh)
+	close(t.errCh)
+	slog.Info("finished scanning file", slog.Int("rows", t.count))
 }
