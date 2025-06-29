@@ -17,7 +17,7 @@ const (
 	fileTemplate = "tests/data/source_%v.txt"
 )
 
-func generateSource() (*transformer.Source, error) {
+func generateSource(id int) (*transformer.Source, error) {
 	postfixOpts := []any{"", faker.NameSuffix()}
 	postfix, err := faker.Weighted(postfixOpts, []float32{0.4, 0.6})
 	if err != nil {
@@ -25,7 +25,7 @@ func generateSource() (*transformer.Source, error) {
 	}
 
 	r := &transformer.Source{
-		Id:          strconv.Itoa(faker.Number(100000, 999999)),
+		Id:          strconv.Itoa(id),
 		Prefix:      faker.NamePrefix(),
 		Postfix:     postfix.(string),
 		FirstName:   faker.FirstName(),
@@ -50,11 +50,15 @@ func main() {
 	defer file.Close()
 
 	progress := 0
+	currentId := 10000000
+
 	// write each row without comma
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "")
+
 	for i := range count {
-		s, err := generateSource()
+		currentId += faker.IntN(5) + 1
+		s, err := generateSource(currentId)
 		if err != nil {
 			log.Fatalf("[ERROR] Failed to generate source: %v", err)
 		}

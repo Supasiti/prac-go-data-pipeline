@@ -3,6 +3,7 @@ package opensearch
 import (
 	"crypto/tls"
 	"net/http"
+	"time"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/config"
 	opensearchbase "github.com/opensearch-project/opensearch-go/v4"
@@ -18,6 +19,12 @@ func NewClient(cfg config.OpenSearchConfig) (*opensearchapi.Client, error) {
 			Addresses: []string{cfg.Url},
 			Username:  cfg.Username,
 			Password:  cfg.Password,
+
+			RetryOnStatus: []int{502, 503, 504, 429}, // Retry on these HTTP status codes
+			RetryBackoff: func(i int) time.Duration {
+				return time.Duration(i) * 500 * time.Millisecond // simple incremental backoff
+			},
+			MaxRetries: 5,
 		},
 	}
 

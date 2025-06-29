@@ -12,7 +12,7 @@ import (
 
 const (
 	filePath  = "./tests/data/source_1000000.txt"
-	batchSize = 10
+	batchSize = 20
 	indexName = "person"
 	queueSize = 1000
 )

@@ -27,23 +27,25 @@ func (w *Transformer) ScanFile(file *os.File, outCh chan<- *opensearch.Document)
 	defer close(outCh)
 
 	slog.Info("starting scanning")
+	count := 0
 
-	var src Source
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		var src Source
 		if err := json.Unmarshal(line, &src); err != nil {
 			// deal with error later
 			slog.Warn("error unmarshalling a row")
 			continue
 		}
 		outCh <- sourceToDocument(&src)
+		count++
 	}
 
 	if err := scanner.Err(); err != nil {
 		slog.Error("error reading file", slog.Any("error", err))
 	}
 
-	slog.Info("finished scanning file")
+	slog.Info("finished scanning file", slog.Int("rows", count))
 }
