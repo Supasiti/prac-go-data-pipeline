@@ -16,7 +16,7 @@ const (
 	batchSize  = 20
 	indexName  = "person"
 	queueSize  = 1000
-	numIndexer = 1
+	numIndexer = 2
 )
 
 func main() {

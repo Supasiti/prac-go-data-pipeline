@@ -86,7 +86,7 @@ func (i *Indexer) indexDocuments() error {
 }
 
 func (i *Indexer) bulkBodyReader(docs []*Document) (io.Reader, error) {
-	blkStr := ""
+	b := &strings.Builder{}
 
 	for _, doc := range docs {
 		docStr, err := json.Marshal(doc)
@@ -94,10 +94,11 @@ func (i *Indexer) bulkBodyReader(docs []*Document) (io.Reader, error) {
 			return nil, fmt.Errorf("error json marshalling to bulk request: %v", err)
 		}
 
-		blkStr += fmt.Sprintf("{ \"update\": { \"_index\": \"%s\", \"_id\": \"%s\" } }\n", i.Index, doc.Id)
-		blkStr += fmt.Sprintf("{ \"doc\" : %s, \"doc_as_upsert\": true }\n", docStr)
-
+		fmt.Fprintf(b, `{ "update": { "_index": "%s", "_id": "%s" } }`, i.Index, doc.Id)
+		b.WriteString("\n")
+		fmt.Fprintf(b, `{ "doc" : %s, "doc_as_upsert": true }`, docStr)
+		b.WriteString("\n")
 	}
 
-	return strings.NewReader(blkStr), nil
+	return strings.NewReader(b.String()), nil
 }
