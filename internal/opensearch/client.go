@@ -20,6 +20,7 @@ func NewClient(cfg config.OpenSearchConfig) (*opensearchapi.Client, error) {
 			Username:  cfg.Username,
 			Password:  cfg.Password,
 
+			// Retry
 			RetryOnStatus: []int{502, 503, 504, 429}, // Retry on these HTTP status codes
 			RetryBackoff: func(i int) time.Duration {
 				return time.Duration(i) * 500 * time.Millisecond // simple incremental backoff

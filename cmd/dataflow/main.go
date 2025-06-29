@@ -40,8 +40,8 @@ func main() {
 
 	var wg sync.WaitGroup
 	for range numIndexer {
-		wg.Add(1)
 		indexer := opensearch.NewIndexer(client, indexName, batchSize)
+		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
