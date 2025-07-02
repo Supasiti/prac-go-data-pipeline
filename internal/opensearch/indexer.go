@@ -44,17 +44,13 @@ func NewIndexer(cfg IndexerConfig) *Indexer {
 
 func (i *Indexer) Start(errCh chan<- error) {
 	slog.Info("starting indexing")
+	defer i.onExit(errCh)
 
 	for {
 		doc, ok := <-i.inCh
 		if !ok {
 			slog.Info("channel is closed")
-			if i.cursor < i.bufSize {
-				if err := i.indexDocuments(); err != nil {
-					errCh <- err
-				}
-			}
-			break
+			return
 		}
 
 		if i.cursor >= i.bufSize {
@@ -72,7 +68,15 @@ func (i *Indexer) Start(errCh chan<- error) {
 			errCh <- err
 		}
 	}
+}
 
+func (i *Indexer) onExit(errCh chan<- error) {
+	// clean up the rest in buffer
+	if i.cursor < i.bufSize {
+		if err := i.indexDocuments(); err != nil {
+			errCh <- err
+		}
+	}
 	slog.Info("finished indexing", slog.Uint64("count", i.count))
 }
 
