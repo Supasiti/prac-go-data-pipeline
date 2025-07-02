@@ -13,19 +13,17 @@ import (
 
 type Transformer struct {
 	outCh chan *opensearch.Document
-	errCh chan error
 	count int
 }
 
 func NewTransformer(queueSize int) *Transformer {
 	return &Transformer{
 		outCh: make(chan *opensearch.Document, queueSize),
-		errCh: make(chan error, queueSize),
 		count: 0,
 	}
 }
 
-func (t *Transformer) ScanFile(ctx context.Context, file *os.File) {
+func (t *Transformer) ScanFile(ctx context.Context, file *os.File, errCh chan<- error) {
 	defer t.cleanup()
 	t.count = 0
 
@@ -35,14 +33,13 @@ func (t *Transformer) ScanFile(ctx context.Context, file *os.File) {
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			t.errCh <- fmt.Errorf("cancel scanning %v", ctx.Err())
+			errCh <- fmt.Errorf("stop scanning %w", ctx.Err())
 			return
 		default:
 			line := scanner.Bytes()
 			var src Source
 			if err := json.Unmarshal(line, &src); err != nil {
-				err = fmt.Errorf("error unmarshalling a row: %v", err)
-				t.errCh <- err
+				errCh <- fmt.Errorf("error unmarshalling a row: %w", err)
 				continue
 			}
 
@@ -54,8 +51,7 @@ func (t *Transformer) ScanFile(ctx context.Context, file *os.File) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		err = fmt.Errorf("error reading file: %v", err)
-		t.errCh <- err
+		errCh <- fmt.Errorf("error scanning file: %w", err)
 	}
 }
 
@@ -63,12 +59,7 @@ func (t *Transformer) Documents() <-chan *opensearch.Document {
 	return t.outCh
 }
 
-func (t *Transformer) Err() <-chan error {
-	return t.errCh
-}
-
 func (t *Transformer) cleanup() {
 	close(t.outCh)
-	close(t.errCh)
 	slog.Info("finished scanning file", slog.Int("rows", t.count))
 }

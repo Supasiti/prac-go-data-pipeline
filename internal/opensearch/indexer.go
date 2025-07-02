@@ -15,12 +15,14 @@ type IndexerConfig struct {
 	Client    *opensearchapi.Client
 	IndexName string
 	BufSize   uint16
+	InCh      <-chan *Document
 }
 
 type Indexer struct {
 	client *opensearchapi.Client
 	index  string
 
+	inCh    <-chan *Document
 	buf     []*Document
 	bufSize uint16
 	cursor  uint16 // the next slot in the buffer for document
@@ -32,6 +34,7 @@ func NewIndexer(cfg IndexerConfig) *Indexer {
 		client: cfg.Client,
 		index:  cfg.IndexName,
 
+		inCh:    cfg.InCh,
 		buf:     make([]*Document, cfg.BufSize),
 		bufSize: cfg.BufSize,
 		cursor:  0,
@@ -39,15 +42,17 @@ func NewIndexer(cfg IndexerConfig) *Indexer {
 	}
 }
 
-func (i *Indexer) Start(ch <-chan *Document) {
+func (i *Indexer) Start(errCh chan<- error) {
 	slog.Info("starting indexing")
 
 	for {
-		doc, ok := <-ch
+		doc, ok := <-i.inCh
 		if !ok {
 			slog.Info("channel is closed")
 			if i.cursor < i.bufSize {
-				i.indexDocuments()
+				if err := i.indexDocuments(); err != nil {
+					errCh <- err
+				}
 			}
 			break
 		}
@@ -63,8 +68,9 @@ func (i *Indexer) Start(ch <-chan *Document) {
 			continue
 		}
 
-		i.indexDocuments()
-		// ignore error for now
+		if err := i.indexDocuments(); err != nil {
+			errCh <- err
+		}
 	}
 
 	slog.Info("finished indexing", slog.Uint64("count", i.count))
@@ -74,20 +80,28 @@ func (i *Indexer) indexDocuments() error {
 	docs := i.buf[0:i.cursor]
 	bulkBody, err := i.bulkBodyReader(docs)
 	if err != nil {
-		return fmt.Errorf("error creating bulk req: %v", err)
+		return fmt.Errorf("error creating bulk req for %v: %w", Ids(docs), err)
 	}
 
 	resp, err := i.client.Bulk(context.Background(), opensearchapi.BulkReq{Body: bulkBody})
 	if err != nil {
-		return fmt.Errorf("error bulk insert: %v", err)
-	}
-	if resp.Errors {
-		for _, item := range resp.Items {
-			slog.Error("error bulk insert", slog.Any("item", item))
-		}
+		return fmt.Errorf("error bulk insert for %v: %w", Ids(docs), err)
 	}
 
-	// deal with partial failure later
+	// for partial errors
+	if resp.Errors {
+		ids := make([]string, len(docs))
+		for _, item := range resp.Items {
+			if item["update"].Error != nil {
+				ids = append(ids, item["update"].ID)
+				slog.Error("error bulk insert", slog.Any("item", item))
+			} else {
+				i.count += 1
+			}
+		}
+		return fmt.Errorf("partial error bulk insert for %v", ids)
+	}
+
 	i.count += uint64(i.cursor)
 	return nil
 }
@@ -98,7 +112,7 @@ func (i *Indexer) bulkBodyReader(docs []*Document) (io.Reader, error) {
 	for _, doc := range docs {
 		docStr, err := json.Marshal(doc)
 		if err != nil {
-			return nil, fmt.Errorf("error json marshalling to bulk request: %v", err)
+			return nil, fmt.Errorf("error json marshalling to bulk request: %w", err)
 		}
 
 		fmt.Fprintf(b, `{ "update": { "_index": "%s", "_id": "%s" } }`, i.index, doc.Id)

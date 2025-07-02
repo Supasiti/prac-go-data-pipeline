@@ -30,8 +30,10 @@ func main() {
 	}
 
 	slog.Info("initialising transformer and indexer...")
-	tfm := transformer.NewTransformer(queueSize)
+	errCh := make(chan error, queueSize)
+	defer close(errCh)
 
+	tfm := transformer.NewTransformer(queueSize)
 	client, err := opensearch.NewClient(*cfg.OpenSearch)
 	if err != nil {
 		slog.Error("error initiate opensearch client", slog.Any("error", err))
@@ -44,12 +46,13 @@ func main() {
 			Client:    client,
 			IndexName: indexName,
 			BufSize:   batchSize,
+			InCh:      tfm.Documents(),
 		})
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
-			indexer.Start(tfm.Documents())
+			indexer.Start(errCh)
 		}()
 	}
 
@@ -61,8 +64,9 @@ func main() {
 	}
 	defer file.Close()
 
-	go tfm.ScanFile(context.Background(), file)
+	go tfm.ScanFile(context.Background(), file, errCh)
 
 	wg.Wait()
+
 	slog.Info("finished execution", slog.Duration("excution_time", time.Since(start)))
 }
