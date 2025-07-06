@@ -7,27 +7,22 @@ import (
 )
 
 type ErrorReport struct {
-	errCh  <-chan error
-	writer io.Writer
 }
 
-func New(errCh <-chan error, writer io.Writer) *ErrorReport {
-	return &ErrorReport{
-		errCh:  errCh,
-		writer: writer,
-	}
+func New() *ErrorReport {
+	return &ErrorReport{}
 }
 
-func (e *ErrorReport) AcceptErrors(cancel context.CancelFunc) {
+func (e *ErrorReport) AcceptErrors(errCh <-chan error, target io.Writer, cancel context.CancelFunc) {
 	for {
-		error, ok := <-e.errCh
+		error, ok := <-errCh
 		if !ok {
 			slog.Info("error channel is closed: closing down error reporter")
 			return
 		}
 
 		toWrite := error.Error() + "\n"
-		if _, err := e.writer.Write([]byte(toWrite)); err != nil {
+		if _, err := target.Write([]byte(toWrite)); err != nil {
 			slog.Error("error writing to file", slog.Any("err", err))
 			cancel()
 			slog.Info("closing down error reporter")

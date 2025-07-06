@@ -1,16 +1,11 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
-	"sync"
-	"time"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/config"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/errorreport"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/opensearch"
-	"github.com/Supasiti/prac-go-data-pipeline/internal/transformer"
+	"github.com/Supasiti/prac-go-data-pipeline/internal/dataflow"
 )
 
 const (
@@ -31,61 +26,33 @@ func checkErr(err error, msg string) {
 }
 
 func main() {
-	start := time.Now()
-
 	// init config
 	slog.Info("getting config...")
 	cfg, err := config.NewConfig()
 	checkErr(err, "error getting config from .env file")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// init dataflow runner
+	slog.Info("initialising dataflow runner...")
+	runner, err := dataflow.NewRunner(dataflow.RunnerConfig{
+		QueueSize:        queueSize,
+		OpenSearch:       cfg.OpenSearch,
+		NumIndexer:       numIndexer,
+		IndexerBatchSize: batchSize,
+		IndexName:        indexName,
+	})
+	checkErr(err, "error initialising dataflow runner")
 
-	// init error report
-	slog.Info("initialising error reporter...")
-	errCh := make(chan error, queueSize)
-
+	// open file for error reports
+	slog.Info("opening file for error reports ...", slog.String("file", srcPath))
 	errFile, err := os.OpenFile(errPath, os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0644)
 	checkErr(err, "error open file for error report")
 	defer errFile.Close()
 
-	errReporter := errorreport.New(errCh, errFile)
-	go errReporter.AcceptErrors(cancel)
-
-	// init transformer
-	slog.Info("initialising transformer ...")
-	tfm := transformer.NewTransformer(queueSize)
-
-	// init indexers
-	slog.Info("initialising indexers ...")
-	client, err := opensearch.NewClient(*cfg.OpenSearch)
-	checkErr(err, "error initiate opensearch client")
-
-	var wg sync.WaitGroup
-	for range numIndexer {
-		indexer := opensearch.NewIndexer(opensearch.IndexerConfig{
-			Client:    client,
-			IndexName: indexName,
-			BufSize:   batchSize,
-		})
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			indexer.Start(tfm.Documents(), errCh)
-		}()
-	}
-
-	// opening source file
+	// open file for reading
 	slog.Info("opening source file ...", slog.String("file", srcPath))
 	srcFile, err := os.Open(srcPath)
 	checkErr(err, "error opening file")
 	defer srcFile.Close()
 
-	// start scanning
-	go tfm.ScanFile(ctx, srcFile, errCh)
-
-	wg.Wait()
-	close(errCh)
-
-	slog.Info("finished execution", slog.Duration("excution_time", time.Since(start)))
+	runner.Run(srcFile, errFile)
 }
