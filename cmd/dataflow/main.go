@@ -66,13 +66,12 @@ func main() {
 			Client:    client,
 			IndexName: indexName,
 			BufSize:   batchSize,
-			InCh:      tfm.Documents(),
 		})
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
-			indexer.Start(errCh)
+			indexer.Start(tfm.Documents(), errCh)
 		}()
 	}
 

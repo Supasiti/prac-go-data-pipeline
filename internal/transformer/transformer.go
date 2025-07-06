@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
-	"os"
 
 	"github.com/Supasiti/prac-go-data-pipeline/internal/opensearch"
 )
@@ -23,12 +23,12 @@ func NewTransformer(queueSize int) *Transformer {
 	}
 }
 
-func (t *Transformer) ScanFile(ctx context.Context, file *os.File, errCh chan<- error) {
+func (t *Transformer) ScanFile(ctx context.Context, reader io.Reader, errCh chan<- error) {
 	defer t.cleanup()
 	t.count = 0
 
 	slog.Info("starting scanning")
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(reader)
 
 	for scanner.Scan() {
 		select {

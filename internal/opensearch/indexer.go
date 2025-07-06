@@ -15,14 +15,12 @@ type IndexerConfig struct {
 	Client    *opensearchapi.Client
 	IndexName string
 	BufSize   uint16
-	InCh      <-chan *Document
 }
 
 type Indexer struct {
 	client *opensearchapi.Client
 	index  string
 
-	inCh    <-chan *Document
 	buf     []*Document
 	bufSize uint16
 	cursor  uint16 // the next slot in the buffer for document
@@ -34,7 +32,6 @@ func NewIndexer(cfg IndexerConfig) *Indexer {
 		client: cfg.Client,
 		index:  cfg.IndexName,
 
-		inCh:    cfg.InCh,
 		buf:     make([]*Document, cfg.BufSize),
 		bufSize: cfg.BufSize,
 		cursor:  0,
@@ -42,12 +39,12 @@ func NewIndexer(cfg IndexerConfig) *Indexer {
 	}
 }
 
-func (i *Indexer) Start(errCh chan<- error) {
+func (i *Indexer) Start(inCh <-chan *Document, errCh chan<- error) {
 	slog.Info("starting indexing")
 	defer i.onExit(errCh)
 
 	for {
-		doc, ok := <-i.inCh
+		doc, ok := <-inCh
 		if !ok {
 			slog.Info("channel is closed")
 			return
