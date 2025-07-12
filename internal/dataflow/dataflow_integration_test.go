@@ -82,6 +82,7 @@ func TestRunner_Run(t *testing.T) {
 		assert.NoErrorf(t, err, "error getting count from opensearch")
 		assert.Equal(t, 1000, countResp.Counts[0].Count)
 
+		// search document
 		content := strings.NewReader(`{
     "query": {
         "multi_match": {
