@@ -29,4 +29,6 @@ go.work.sum
 
 
 # test data
-tests/data/
+tests/data/source_10000*
+tests/data/error*
+
